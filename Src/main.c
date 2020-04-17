@@ -40,11 +40,19 @@
 #include "main.h"
 #include "stm32f1xx_hal.h"
 
+
 /* USER CODE BEGIN Includes */
+#include <stdint.h>
 #define MASK_MAX 256
 #define BYTE_COUNT 8
 #define GPIOA_IDR 0x40010808
 #define GPIOB_ODR 0x40010C0C
+#define HIGH 'H'
+#define LOW 'L'
+#define IDLE 'I'
+#define HIGH_THRESH_MIN 5000 // 5000<high<7500 (not really,just for the sports)
+#define LOW_THRESH_MAX  2000 // 0<low<2000 (not really,just for the sports)
+
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
@@ -53,6 +61,7 @@ TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+static uint32_t clock = 0;
 static uint32_t phy_to_dll_rx_bus;
 static uint32_t dll_to_phy_tx_bus;
 static uint32_t dll_to_phy_tx_bus_valid = 0;
@@ -62,7 +71,6 @@ uint8_t phy_rx_new_data = 0;
 
 static uint32_t phy_tx_data_value = 0;
 static uint32_t phy_rx_data_value = 0;
-static uint32_t tx_clock = 0;
 static uint32_t phy_rx_clock = 0;
 static uint32_t interface_clock = 0;
 uint32_t prev_tx_clock = 0;
@@ -92,40 +100,132 @@ The funcion receives data from dll_tx to send, than sends it over the communicat
 every time tx_clock is in rising edge.
 In order to send the data the function starts a clock, than stops it in the end of the transfer.
 */
+
+void send_state(char state, uint8_t *cur_state)
+{
+	switch(state){
+		case HIGH:
+			HAL_GPIO_WritePin(C_GPIO_Port, C_Pin, GPIO_PIN_SET); //C=1
+			HAL_GPIO_WritePin(B_GPIO_Port, B_Pin, GPIO_PIN_SET); //B=1
+			break;
+		case LOW:
+			HAL_GPIO_WritePin(C_GPIO_Port, C_Pin, GPIO_PIN_SET); //C=1
+			HAL_GPIO_WritePin(B_GPIO_Port, B_Pin, GPIO_PIN_RESET); //B=D
+			break;
+		case IDLE:
+			HAL_GPIO_WritePin(C_GPIO_Port, C_Pin, GPIO_PIN_RESET); //C=0
+			HAL_GPIO_WritePin(B_GPIO_Port, B_Pin, GPIO_PIN_RESET); //B=DC
+			break;
+		}
+	*cur_state = state;
+}	
 void phy_TX()
 {
+	uint8_t current_state;
+	uint8_t next_state;
 	uint8_t masked_bit = 0;
 	static uint8_t tx_first_state = 1;
-	static uint8_t tx_preamble_state = 1;
+	static uint8_t tx_preamble_counter = 0;
 	static uint8_t data_to_send = 0;
 	static uint16_t mask = 1;
 	
-	if(tx_first_state)
-	{//send idle: C = 0, B = dont care
-		HAL_GPIO_WritePin(C_GPIO_Port, C_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(B_GPIO_Port, B_Pin, GPIO_PIN_RESET);
+	if(tx_first_state) //function first iteration, send IDLE
+	{
+		send_state(IDLE,&current_state);
 		tx_first_state = 0;
 	}
 	if(dll_new_data)//dll tranfered new data to send
 	{
 		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_SET);//set phy_tx_busy to 1
 		phy_busy = 1;
-		HAL_TIM_Base_Start(&htim3);
+		HAL_TIM_Base_Start(&htim3); //start commi clock 
 		HAL_TIM_Base_Start_IT(&htim3);
 		dll_new_data = 0;
 	}
-	if(tx_clock && !prev_tx_clock)
+	if(clock && !prev_tx_clock)
 	{
-		
+		if(tx_preamble_counter < 3)
+		{
+			send_state(HIGH,&current_state);
+			tx_preamble_counter++;
+		}
+		else
+		{
+			masked_bit = dll_to_phy_tx_bus & mask;
+			switch(masked_bit)
+			{
+				case 0:
+					send_state(LOW,&current_state);
+					break;
+				default: //any other value that 0, means current bit is 1.
+					send_state(HIGH,&current_state);
+					break;
+			}
+		}
 	}
+	else 	if(!clock && prev_tx_clock)
+	{
+		current_state	= (current_state == HIGH) ? (LOW) : (HIGH); //send HIGH if in the last raising edge LOW was sent vice versa
+		send_state(current_state,&current_state);
+	}
+	else if(mask > 256) //all 8-bits were sent 
+	{
+		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_SET);//set phy_tx_busy to 0
+		phy_busy = 0;
+		HAL_TIM_Base_Stop(&htim3); //stop commi clock 
+		HAL_TIM_Base_Stop_IT(&htim3);
+		send_state(IDLE,&current_state); //send idle
+	}
+
 }
 
 /*
 The function receives a bit from the communication line every time the rx_clock is in falling edge.
 After reeiving 8 bits the function transfers the data to the dll_rx.
 */
-void phy_RX()
+void phy_RX() //this is the function who is known in the streets as "big boy chili". 
 {
+	static char samples[5];
+	static uint8_t rx_preamble_counter = 0;
+	static uint8_t sample_counter = 0;
+	uint32_t bit;
+	uint32_t temp;
+	if(sample_counter < 5)
+	{
+		temp = HAL_GPIO_ReadPin(Rx_GPIO_Port,Rx_Pin);
+		if(temp > HIGH_THRESH_MIN)
+			samples[sample_counter] = HIGH;
+		else if(temp < LOW_THRESH_MAX)
+					samples[sample_counter] = LOW;
+		else
+					samples[sample_counter] = IDLE;
+		sample_counter++;
+	}
+	else 
+	{
+		if(((samples[0] == LOW && samples[1] == LOW && samples[2] == LOW) && (samples[3] == HIGH && samples[4] == HIGH)) 
+				|| ((samples[0] == LOW && samples[1] == LOW) && (samples[2] == HIGH &&samples[3] == HIGH && samples[4] == HIGH)))
+		{		//low pulse
+			if(rx_preamble_counter < 3) return; //exit program
+			bit = 0;
+			sample_counter = 0;
+		}
+		else if(((samples[0] == HIGH && samples[1] == HIGH && samples[2] == HIGH) && (samples[3] == LOW && samples[4] == LOW)) 
+				|| ((samples[0] == HIGH && samples[1] == HIGH) && (samples[2] == LOW &&samples[3] == LOW && samples[4] == LOW))) 
+		{ //high pulse 
+			rx_preamble_counter = (rx_preamble_counter < 3) ? (rx_preamble_counter+1) : (rx_preamble_counter);
+			bit = 1;
+			sample_counter = 0;
+		}
+		else if(samples[0] == IDLE && samples[1] == IDLE && samples[2] == IDLE && samples[3] == IDLE && samples[4] == IDLE)
+		{
+			//to do: handle idle in middle of byte or sync 1s
+			sample_counter = 0;
+		}
+					//to do: throw first sampel in for loop, kaka baleven gang up in this bitch 
+
+	}
+	
 }
 
 /*
@@ -175,7 +275,7 @@ void interface()
 
 void sampleClocks()
 {
-	prev_tx_clock = tx_clock;
+	prev_tx_clock = clock;
 	prev_rx_clock = phy_rx_clock;
 	prev_interface_clock = interface_clock;
 	//tx_clock = HAL_GPIO_ReadPin(phy_tx_clock_GPIO_Port,phy_tx_clock_Pin);
@@ -230,7 +330,7 @@ int main(void)
 	//HAL_GPIO_WritePin(phy_tx_clock_GPIO_Port,phy_tx_clock_Pin, GPIO_PIN_RESET);//set clock to 0
 	HAL_GPIO_WritePin(interface_clock_GPIO_Port,interface_clock_Pin, GPIO_PIN_RESET);//set clock to 0
 	HAL_GPIO_WritePin(phy_to_dll_rx_bus_valid_GPIO_Port,phy_to_dll_rx_bus_valid_Pin,GPIO_PIN_RESET);//set valid to 0
-	tx_clock = 0;
+	clock = 0;
 	phy_rx_clock = 0;
 	interface_clock = 0;
   /* USER CODE END 2 */

@@ -36,7 +36,7 @@
 #include "stm32f1xx_it.h"
 
 /* USER CODE BEGIN 0 */
-extern uint32_t tx_clock;
+extern uint32_t clock;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -213,7 +213,7 @@ void TIM2_IRQHandler(void)
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-	tx_clock = 1 - tx_clock;
+	clock = 1 - clock;
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
   /* USER CODE BEGIN TIM3_IRQn 1 */
