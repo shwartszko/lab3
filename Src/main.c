@@ -94,7 +94,30 @@ In order to send the data the function starts a clock, than stops it in the end 
 */
 void phy_TX()
 {
+	uint8_t masked_bit = 0;
+	static uint8_t tx_first_state = 1;
+	static uint8_t tx_preamble_state = 1;
+	static uint8_t data_to_send = 0;
+	static uint16_t mask = 1;
 	
+	if(tx_first_state)
+	{//send idle: C = 0, B = dont care
+		HAL_GPIO_WritePin(C_GPIO_Port, C_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(B_GPIO_Port, B_Pin, GPIO_PIN_RESET);
+		tx_first_state = 0;
+	}
+	if(dll_new_data)//dll tranfered new data to send
+	{
+		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_SET);//set phy_tx_busy to 1
+		phy_busy = 1;
+		HAL_TIM_Base_Start(&htim3);
+		HAL_TIM_Base_Start_IT(&htim3);
+		dll_new_data = 0;
+	}
+	if(tx_clock && !prev_tx_clock)
+	{
+		
+	}
 }
 
 /*
