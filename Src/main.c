@@ -39,10 +39,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f1xx_hal.h"
-
+#include <stdlib.h>
 
 /* USER CODE BEGIN Includes */
-#include <stdint.h>
 #define MASK_MAX 256
 #define BYTE_COUNT 8
 #define GPIOA_IDR 0x40010808
@@ -52,6 +51,10 @@
 #define IDLE 'I'
 #define HIGH_THRESH_MIN 5000 // 5000<high<7500 (not really,just for the sports)
 #define LOW_THRESH_MAX  2000 // 0<low<2000 (not really,just for the sports)
+
+#define RX_SYNC_STATE 100
+#define RX_DATA_STATE 101
+#define SAMPLE_MAX 5
 
 /* USER CODE END Includes */
 
@@ -185,13 +188,25 @@ After reeiving 8 bits the function transfers the data to the dll_rx.
 */
 void phy_RX() //this is the function who is known in the streets as "big boy chili". 
 {
-	static char samples[5];
+	static char samples[SAMPLE_MAX];
 	static uint8_t rx_preamble_counter = 0;
 	static uint8_t sample_counter = 0;
+	static uint32_t rx_state = RX_SYNC_STATE;
+	static uint32_t throws_counter = 0;
+	
+	static uint32_t mask = 1;
+	static uint32_t data_input = 0;
+	uint32_t i = 0;
 	uint32_t bit;
 	uint32_t temp;
+	
+	rx_state = (rx_preamble_counter == 3) ? (RX_DATA_STATE) : (RX_SYNC_STATE);
 	if(sample_counter < 5)
 	{
+		/*
+		TO DO:
+		- Add a timer to sample the incoming data
+		*/
 		temp = HAL_GPIO_ReadPin(Rx_GPIO_Port,Rx_Pin);
 		if(temp > HIGH_THRESH_MIN)
 			samples[sample_counter] = HIGH;
@@ -205,27 +220,62 @@ void phy_RX() //this is the function who is known in the streets as "big boy chi
 	{
 		if(((samples[0] == LOW && samples[1] == LOW && samples[2] == LOW) && (samples[3] == HIGH && samples[4] == HIGH)) 
 				|| ((samples[0] == LOW && samples[1] == LOW) && (samples[2] == HIGH &&samples[3] == HIGH && samples[4] == HIGH)))
-		{		//low pulse
-			if(rx_preamble_counter < 3) return; //exit program
+		{ //low pulse
+			if(rx_state == RX_SYNC_STATE) 
+				return; //exit program
+			
 			bit = 0;
+			mask*=2;
 			sample_counter = 0;
 		}
 		else if(((samples[0] == HIGH && samples[1] == HIGH && samples[2] == HIGH) && (samples[3] == LOW && samples[4] == LOW)) 
 				|| ((samples[0] == HIGH && samples[1] == HIGH) && (samples[2] == LOW &&samples[3] == LOW && samples[4] == LOW))) 
 		{ //high pulse 
 			rx_preamble_counter = (rx_preamble_counter < 3) ? (rx_preamble_counter+1) : (rx_preamble_counter);
+			/*
+			TO DO:
+			- Add a timer to messure the time taken to receive preamble bits
+			- Calculate the sampling frequency
+			*/
 			bit = 1;
 			sample_counter = 0;
+			if(rx_state == RX_DATA_STATE)
+			{
+				data_input+=mask;
+				mask*=2;	
+			}
 		}
 		else if(samples[0] == IDLE && samples[1] == IDLE && samples[2] == IDLE && samples[3] == IDLE && samples[4] == IDLE)
 		{
-			//to do: handle idle in middle of byte or sync 1s
+			if(rx_state == RX_DATA_STATE)
+			{
+				exit(1);//received idle in a middle of a byte, someone made a mistake...
+			}
 			sample_counter = 0;
 		}
-					//to do: throw first sampel in for loop, kaka baleven gang up in this bitch 
-
+		else//didnt recignize incoming bit
+		{
+			if(throws_counter > 5)
+				exit(1);
+			for(;i < SAMPLE_MAX - 1; i++)
+			{
+				samples[i] = samples[i+1];
+			}
+			sample_counter--;
+			throws_counter++;
+		}
 	}
 	
+	
+	if(mask > MASK_MAX)//received a byte
+	{
+		phy_to_dll_rx_bus = data_input;
+		phy_rx_new_data = 1;
+		mask = 1;
+		data_input = 0;
+		rx_state = RX_SYNC_STATE;
+		rx_preamble_counter = 0;
+	}
 }
 
 /*
