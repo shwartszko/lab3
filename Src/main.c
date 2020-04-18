@@ -66,7 +66,7 @@ TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-static uint32_t clock = 0;
+uint32_t clock = 0;
 uint8_t sample_counter;
 static uint32_t phy_to_dll_rx_bus;
 static uint32_t dll_to_phy_tx_bus;
@@ -110,7 +110,7 @@ every time tx_clock is in rising edge.
 In order to send the data the function starts a clock, than stops it in the end of the transfer.
 */
 
-void send_state(char state, uint8_t *cur_state)
+void send_state(char state)
 {
 	switch(state){
 		case HIGH:
@@ -126,21 +126,22 @@ void send_state(char state, uint8_t *cur_state)
 			HAL_GPIO_WritePin(B_GPIO_Port, B_Pin, GPIO_PIN_RESET); //B=DC
 			break;
 		}
-	*cur_state = state;
 }	
 void phy_TX()
 {
-	uint8_t current_state;
+	static char current_state = IDLE;
+	//send_state(IDLE, &current_state);
 	uint8_t next_state;
-	uint8_t masked_bit = 0;
+	static uint8_t masked_bit = 0;
 	static uint8_t tx_first_state = 1;
 	static uint8_t tx_preamble_counter = 0;
 	static uint8_t data_to_send = 0;
-	static uint16_t mask = 1;
+	static uint32_t mask = 1;
 	
 	if(tx_first_state) //function first iteration, send IDLE
 	{
-		send_state(IDLE,&current_state);
+		current_state = IDLE; 
+		send_state(IDLE);
 		tx_first_state = 0;
 	}
 	if(dll_new_data)//dll tranfered new data to send
@@ -151,11 +152,22 @@ void phy_TX()
 		HAL_TIM_Base_Start_IT(&htim3);
 		dll_new_data = 0;
 	}
-	if(clock && !prev_tx_clock)
+	if(mask > MASK_MAX) //all 8-bits were sent 
+	{
+		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_SET);//set phy_tx_busy to 0
+		phy_busy = 0;
+		HAL_TIM_Base_Stop(&htim3); //stop commi clock 
+		HAL_TIM_Base_Stop_IT(&htim3);
+		current_state = IDLE;
+		send_state(IDLE); //send idle
+		mask = 1;
+	}
+	else if(clock && !prev_tx_clock)
 	{
 		if(tx_preamble_counter < 3)
 		{
-			send_state(HIGH,&current_state);
+			current_state = HIGH; 
+			send_state(HIGH);
 			tx_preamble_counter++;
 		}
 		else
@@ -164,26 +176,26 @@ void phy_TX()
 			switch(masked_bit)
 			{
 				case 0:
-					send_state(LOW,&current_state);
+					current_state = LOW;
+					send_state(LOW);
 					break;
 				default: //any other value that 0, means current bit is 1.
-					send_state(HIGH,&current_state);
+					current_state = HIGH;
+					send_state(HIGH);
 					break;
 			}
+			mask*=2;
 		}
 	}
-	else 	if(!clock && prev_tx_clock)
+	else if(!clock && prev_tx_clock)
 	{
-		current_state	= (current_state == HIGH) ? (LOW) : (HIGH); //send HIGH if in the last raising edge LOW was sent vice versa
-		send_state(current_state,&current_state);
-	}
-	else if(mask > MASK_MAX) //all 8-bits were sent 
-	{
-		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_SET);//set phy_tx_busy to 0
-		phy_busy = 0;
-		HAL_TIM_Base_Stop(&htim3); //stop commi clock 
-		HAL_TIM_Base_Stop_IT(&htim3);
-		send_state(IDLE,&current_state); //send idle
+		//send HIGH if in the last raising edge LOW was sent vice versa
+		if(current_state == HIGH)
+			current_state = LOW;
+		else if(current_state == LOW)
+			current_state = HIGH;
+		
+		send_state(current_state);
 	}
 }
 
@@ -252,7 +264,7 @@ void phy_RX() //this is the function who is known in the streets as "big boy chi
 				samples[i] = samples[i+1];
 			}
 			sample_counter--;
-			throws_counter++;
+			//throws_counter++;
 		}
 	}
 	
@@ -315,7 +327,7 @@ void interface()
 
 void sampleClocks()
 {
-	prev_tx_clock = clock;
+	//prev_tx_clock = clock;
 	prev_rx_clock = phy_rx_clock;
 	prev_interface_clock = interface_clock;
 	//tx_clock = HAL_GPIO_ReadPin(phy_tx_clock_GPIO_Port,phy_tx_clock_Pin);
@@ -572,7 +584,7 @@ static void MX_TIM4_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 4999;
+  htim4.Init.Prescaler = 3332;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim4.Init.Period = 1;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;

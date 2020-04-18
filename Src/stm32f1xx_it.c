@@ -42,6 +42,7 @@
 #define LOW 'L'
 #define IDLE 'I'
 extern uint32_t clock;
+extern uint32_t prev_tx_clock;
 extern char samples[5];
 extern uint8_t sample_counter;
 static uint32_t temp = 0;
@@ -223,6 +224,7 @@ void TIM2_IRQHandler(void)
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
+	prev_tx_clock = clock;
 	clock = 1 - clock;
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
@@ -237,16 +239,20 @@ void TIM3_IRQHandler(void)
 void TIM4_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM4_IRQn 0 */
-	while(HAL_ADC_PollForConversion(&hadc1,5) != HAL_OK){}
-	temp = HAL_ADC_GetValue(&hadc1);
-	if(temp > HIGH_THRESH_MIN)
-		samples[sample_counter] = HIGH;
-	else if(temp < LOW_THRESH_MAX)
-		samples[sample_counter] = LOW;
-	else
-		samples[sample_counter] = IDLE;
-	sample_counter++;
-  /* USER CODE END TIM4_IRQn 0 */
+	if(sample_counter < 5)
+	{
+		while(HAL_ADC_PollForConversion(&hadc1,5) != HAL_OK){}
+		temp = HAL_ADC_GetValue(&hadc1);
+		if(temp > HIGH_THRESH_MIN)
+			samples[sample_counter] = HIGH;
+		else if(temp < LOW_THRESH_MAX)
+			samples[sample_counter] = LOW;
+		else
+			samples[sample_counter] = IDLE;
+		sample_counter++;
+	}
+
+	/* USER CODE END TIM4_IRQn 0 */
   HAL_TIM_IRQHandler(&htim4);
   /* USER CODE BEGIN TIM4_IRQn 1 */
 
