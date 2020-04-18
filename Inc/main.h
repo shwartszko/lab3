@@ -69,8 +69,6 @@
 #define dll_tx_6_GPIO_Port GPIOA
 #define dll_tx_7_Pin GPIO_PIN_7
 #define dll_tx_7_GPIO_Port GPIOA
-#define Rx_Pin GPIO_PIN_0
-#define Rx_GPIO_Port GPIOB
 #define dll_rx_2_Pin GPIO_PIN_10
 #define dll_rx_2_GPIO_Port GPIOB
 #define dll_rx_3_Pin GPIO_PIN_11

@@ -4,6 +4,8 @@
 "lab3\stm32f1xx_it.o"
 "lab3\stm32f1xx_hal_msp.o"
 "lab3\stm32f1xx_hal_gpio_ex.o"
+"lab3\stm32f1xx_hal_adc.o"
+"lab3\stm32f1xx_hal_adc_ex.o"
 "lab3\stm32f1xx_hal_tim.o"
 "lab3\stm32f1xx_hal_tim_ex.o"
 "lab3\stm32f1xx_hal.o"

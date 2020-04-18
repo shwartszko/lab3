@@ -36,14 +36,16 @@
 #include "stm32f1xx_it.h"
 
 /* USER CODE BEGIN 0 */
-#define HIGH_THRESH_MIN 5000 // 5000<high<7500 (not really,just for the sports)
-#define LOW_THRESH_MAX  2000 // 0<low<2000 (not really,just for the sports)
+#define HIGH_THRESH_MIN 3500 // 5000<high<7500 (not really,just for the sports)
+#define LOW_THRESH_MAX  1500 // 0<low<2000 (not really,just for the sports)
 #define HIGH 'H'
 #define LOW 'L'
 #define IDLE 'I'
 extern uint32_t clock;
 extern char samples[5];
 extern uint8_t sample_counter;
+static uint32_t temp = 0;
+extern ADC_HandleTypeDef hadc1;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -235,15 +237,15 @@ void TIM3_IRQHandler(void)
 void TIM4_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM4_IRQn 0 */
-	uint32_t temp;
-	temp = HAL_GPIO_ReadPin(Rx_GPIO_Port,Rx_Pin);
-		if(temp > HIGH_THRESH_MIN)
-			samples[sample_counter] = HIGH;
-		else if(temp < LOW_THRESH_MAX)
-					samples[sample_counter] = LOW;
-		else
-					samples[sample_counter] = IDLE;
-		sample_counter++;
+	while(HAL_ADC_PollForConversion(&hadc1,5) != HAL_OK){}
+	temp = HAL_ADC_GetValue(&hadc1);
+	if(temp > HIGH_THRESH_MIN)
+		samples[sample_counter] = HIGH;
+	else if(temp < LOW_THRESH_MAX)
+		samples[sample_counter] = LOW;
+	else
+		samples[sample_counter] = IDLE;
+	sample_counter++;
   /* USER CODE END TIM4_IRQn 0 */
   HAL_TIM_IRQHandler(&htim4);
   /* USER CODE BEGIN TIM4_IRQn 1 */
