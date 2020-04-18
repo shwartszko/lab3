@@ -39,7 +39,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f1xx_hal.h"
-#include <stdlib.h>
 
 /* USER CODE BEGIN Includes */
 #define MASK_MAX 256
@@ -59,18 +58,22 @@
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 static uint32_t clock = 0;
+uint8_t sample_counter;
 static uint32_t phy_to_dll_rx_bus;
 static uint32_t dll_to_phy_tx_bus;
 static uint32_t dll_to_phy_tx_bus_valid = 0;
 static uint32_t phy_to_dll_rx_bus_valid = 0;
 uint8_t dll_new_data = 0;
 uint8_t phy_rx_new_data = 0;
+char samples[5];
 
 static uint32_t phy_tx_data_value = 0;
 static uint32_t phy_rx_data_value = 0;
@@ -90,6 +93,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM4_Init(void);
+static void MX_TIM1_Init(void);
 static void MX_NVIC_Init(void);
 
 /* USER CODE BEGIN PFP */
@@ -171,7 +176,7 @@ void phy_TX()
 		current_state	= (current_state == HIGH) ? (LOW) : (HIGH); //send HIGH if in the last raising edge LOW was sent vice versa
 		send_state(current_state,&current_state);
 	}
-	else if(mask > 256) //all 8-bits were sent 
+	else if(mask > MASK_MAX) //all 8-bits were sent 
 	{
 		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_SET);//set phy_tx_busy to 0
 		phy_busy = 0;
@@ -188,43 +193,29 @@ After reeiving 8 bits the function transfers the data to the dll_rx.
 */
 void phy_RX() //this is the function who is known in the streets as "big boy chili". 
 {
-	static char samples[SAMPLE_MAX];
-	static uint8_t rx_preamble_counter = 0;
-	static uint8_t sample_counter = 0;
-	static uint32_t rx_state = RX_SYNC_STATE;
-	static uint32_t throws_counter = 0;
-	
-	static uint32_t mask = 1;
-	static uint32_t data_input = 0;
+	static uint8_t rx_preamble_counter = 0; //counts the number of sync 1s that were received 
+	static uint32_t rx_state = RX_SYNC_STATE; 
+	static uint32_t throws_counter = 0; //counts the number of samples we threw because an unfamiliar pattern 
+	static uint32_t mask = 1; //isolate each bit from incoming data
+	static uint32_t data_input = 0; 
+	static int first_time_so_I_need_to_turn_on_the_timer_ok = 0;
 	uint32_t i = 0;
-	uint32_t bit;
-	uint32_t temp;
-	
-	rx_state = (rx_preamble_counter == 3) ? (RX_DATA_STATE) : (RX_SYNC_STATE);
-	if(sample_counter < 5)
+	if(first_time_so_I_need_to_turn_on_the_timer_ok)
 	{
-		/*
-		TO DO:
-		- Add a timer to sample the incoming data
-		*/
-		temp = HAL_GPIO_ReadPin(Rx_GPIO_Port,Rx_Pin);
-		if(temp > HIGH_THRESH_MIN)
-			samples[sample_counter] = HIGH;
-		else if(temp < LOW_THRESH_MAX)
-					samples[sample_counter] = LOW;
-		else
-					samples[sample_counter] = IDLE;
-		sample_counter++;
+		HAL_TIM_Base_Start(&htim4);
+		HAL_TIM_Base_Start_IT(&htim4);
+		first_time_so_I_need_to_turn_on_the_timer_ok = 0;
 	}
-	else 
+	rx_state = (rx_preamble_counter == 3) ? (RX_DATA_STATE) : (RX_SYNC_STATE); //if three sync 1s had been recived, Data state
+	if(sample_counter == 5) 
 	{
 		if(((samples[0] == LOW && samples[1] == LOW && samples[2] == LOW) && (samples[3] == HIGH && samples[4] == HIGH)) 
 				|| ((samples[0] == LOW && samples[1] == LOW) && (samples[2] == HIGH &&samples[3] == HIGH && samples[4] == HIGH)))
 		{ //low pulse
-			if(rx_state == RX_SYNC_STATE) 
+			if(rx_state == RX_SYNC_STATE)
+			{				
 				return; //exit program
-			
-			bit = 0;
+			}
 			mask*=2;
 			sample_counter = 0;
 		}
@@ -237,7 +228,6 @@ void phy_RX() //this is the function who is known in the streets as "big boy chi
 			- Add a timer to messure the time taken to receive preamble bits
 			- Calculate the sampling frequency
 			*/
-			bit = 1;
 			sample_counter = 0;
 			if(rx_state == RX_DATA_STATE)
 			{
@@ -247,17 +237,17 @@ void phy_RX() //this is the function who is known in the streets as "big boy chi
 		}
 		else if(samples[0] == IDLE && samples[1] == IDLE && samples[2] == IDLE && samples[3] == IDLE && samples[4] == IDLE)
 		{
-			if(rx_state == RX_DATA_STATE)
+			if(rx_state == RX_DATA_STATE || (rx_preamble_counter > 0 && rx_preamble_counter < 3))
 			{
-				exit(1);//received idle in a middle of a byte, someone made a mistake...
+								return; //received idle in a middle of a byte, someone made a mistake...
 			}
 			sample_counter = 0;
 		}
-		else//didnt recignize incoming bit
+		else//isn't a recognized pattern 
 		{
 			if(throws_counter > 5)
-				exit(1);
-			for(;i < SAMPLE_MAX - 1; i++)
+				return; //exit program
+			for(i=0; i < SAMPLE_MAX - 1; i++)
 			{
 				samples[i] = samples[i+1];
 			}
@@ -373,6 +363,8 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
+  MX_TIM4_Init();
+  MX_TIM1_Init();
 
   /* Initialize interrupts */
   MX_NVIC_Init();
@@ -462,6 +454,40 @@ static void MX_NVIC_Init(void)
   HAL_NVIC_EnableIRQ(TIM3_IRQn);
 }
 
+/* TIM1 init function */
+static void MX_TIM1_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 0;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 0;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
 /* TIM2 init function */
 static void MX_TIM2_Init(void)
 {
@@ -522,6 +548,39 @@ static void MX_TIM3_Init(void)
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
+/* TIM4 init function */
+static void MX_TIM4_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 3332;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 1;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
