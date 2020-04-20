@@ -41,12 +41,18 @@
 #define HIGH 'H'
 #define LOW 'L'
 #define IDLE 'I'
+#define RX_SYNC_STATE 100
+#define RX_DATA_STATE 101
+#define SAMPLE_MAX 5
 extern uint32_t clock;
 extern uint32_t prev_tx_clock;
 extern char samples[5];
 extern uint8_t sample_counter;
 static uint32_t temp = 0;
 extern ADC_HandleTypeDef hadc1;
+extern uint8_t received_bit;
+extern uint8_t rx_preamble_counter; //counts the number of sync 1s that were received 
+extern uint32_t rx_state; 
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -224,7 +230,6 @@ void TIM2_IRQHandler(void)
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-	prev_tx_clock = clock;
 	clock = 1 - clock;
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
@@ -239,7 +244,12 @@ void TIM3_IRQHandler(void)
 void TIM4_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM4_IRQn 0 */
-	if(sample_counter < 5)
+	int i = 0;
+	static uint32_t throws_counter = 0; //counts the number of samples we threw because an unfamiliar pattern 
+	/* USER CODE END TIM4_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim4);
+  /* USER CODE BEGIN TIM4_IRQn 1 */
+	if(sample_counter != 5)
 	{
 		while(HAL_ADC_PollForConversion(&hadc1,5) != HAL_OK){}
 		temp = HAL_ADC_GetValue(&hadc1);
@@ -251,15 +261,63 @@ void TIM4_IRQHandler(void)
 			samples[sample_counter] = IDLE;
 		sample_counter++;
 	}
-
-	/* USER CODE END TIM4_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim4);
-  /* USER CODE BEGIN TIM4_IRQn 1 */
-
+	else
+	{
+		//rx_state = (rx_preamble_counter == 3) ? (RX_DATA_STATE) : (RX_SYNC_STATE);//if three sync 1s had been recived, Data state
+		if(((samples[0] == LOW && samples[1] == LOW && samples[2] == LOW) && (samples[3] == HIGH && samples[4] == HIGH)) 
+				|| ((samples[0] == LOW && samples[1] == LOW) && (samples[2] == HIGH &&samples[3] == HIGH && samples[4] == HIGH)))
+		{ //low pulse
+			/*
+			if(rx_state == RX_SYNC_STATE)
+			{
+					return; //exit program
+			}
+			*/
+			received_bit = 1;
+			sample_counter = 0;
+		}
+		else if(((samples[0] == HIGH && samples[1] == HIGH && samples[2] == HIGH) && (samples[3] == LOW && samples[4] == LOW)) 
+				|| ((samples[0] == HIGH && samples[1] == HIGH) && (samples[2] == LOW &&samples[3] == LOW && samples[4] == LOW))) 
+		{ //high pulse 
+			//rx_preamble_counter = (rx_preamble_counter < 3) ? (rx_preamble_counter+1) : (rx_preamble_counter);
+				/*
+				TO DO:
+				- Add a timer to messure the time taken to receive preamble bits
+				- Calculate the sampling frequency
+				*/
+			sample_counter = 0;
+			//if(rx_state == RX_DATA_STATE)
+			//{
+				received_bit = 2;
+			//}
+		}
+		else if(samples[0] == IDLE && samples[1] == IDLE && samples[2] == IDLE && samples[3] == IDLE && samples[4] == IDLE)
+		{
+			//if(rx_state == RX_DATA_STATE || (rx_preamble_counter > 0 && rx_preamble_counter < 3))
+			//{
+			//					return; //received idle in a middle of a byte, someone made a mistake...
+			//}
+			sample_counter = 0;
+			received_bit = 0;
+		}
+		else//isn't a recognized pattern 
+		{
+			received_bit = 0;
+			//if(throws_counter > 5)
+			//	return; //exit program
+			for(i=0; i < SAMPLE_MAX - 1; i++)
+			{
+				samples[i] = samples[i+1];
+			}
+			sample_counter--;
+			//throws_counter++;
+		}
+	}
   /* USER CODE END TIM4_IRQn 1 */
-}
+
 
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+}

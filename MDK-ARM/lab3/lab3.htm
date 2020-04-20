@@ -3,7 +3,7 @@
 <title>Static Call Graph - [lab3\lab3.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image lab3\lab3.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060750: Last Updated: Sat Apr 18 17:38:34 2020
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060750: Last Updated: Mon Apr 20 16:28:02 2020
 <BR><P>
 <H3>Maximum Stack Usage =        152 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -627,15 +627,15 @@ Global Symbols
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> startup_stm32f103xb.o(RESET)
 </UL>
-<P><STRONG><a name="[27]"></a>TIM3_IRQHandler</STRONG> (Thumb, 20 bytes, Stack size 0 bytes, stm32f1xx_it.o(i.TIM3_IRQHandler))
+<P><STRONG><a name="[27]"></a>TIM3_IRQHandler</STRONG> (Thumb, 16 bytes, Stack size 0 bytes, stm32f1xx_it.o(i.TIM3_IRQHandler))
 <BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = TIM3_IRQHandler &rArr; HAL_TIM_IRQHandler
 </UL>
 <BR>[Calls]<UL><LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_IRQHandler
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> startup_stm32f103xb.o(RESET)
 </UL>
-<P><STRONG><a name="[28]"></a>TIM4_IRQHandler</STRONG> (Thumb, 80 bytes, Stack size 8 bytes, stm32f1xx_it.o(i.TIM4_IRQHandler))
-<BR><BR>[Stack]<UL><LI>Max Depth = 72<LI>Call Chain = TIM4_IRQHandler &rArr; HAL_ADC_PollForConversion &rArr; HAL_RCCEx_GetPeriphCLKFreq
+<P><STRONG><a name="[28]"></a>TIM4_IRQHandler</STRONG> (Thumb, 218 bytes, Stack size 16 bytes, stm32f1xx_it.o(i.TIM4_IRQHandler))
+<BR><BR>[Stack]<UL><LI>Max Depth = 80<LI>Call Chain = TIM4_IRQHandler &rArr; HAL_ADC_PollForConversion &rArr; HAL_RCCEx_GetPeriphCLKFreq
 </UL>
 <BR>[Calls]<UL><LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_IRQHandler
 <LI><a href="#[41]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_ADC_PollForConversion
@@ -693,8 +693,8 @@ Global Symbols
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> entry9a.o(.ARM.Collect$$$$0000000B)
 </UL>
-<P><STRONG><a name="[77]"></a>phy_RX</STRONG> (Thumb, 256 bytes, Stack size 24 bytes, main.o(i.phy_RX))
-<BR><BR>[Stack]<UL><LI>Max Depth = 24<LI>Call Chain = phy_RX
+<P><STRONG><a name="[77]"></a>phy_RX</STRONG> (Thumb, 76 bytes, Stack size 16 bytes, main.o(i.phy_RX))
+<BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = phy_RX
 </UL>
 <BR>[Calls]<UL><LI><a href="#[72]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_Base_Start_IT
 <LI><a href="#[71]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_Base_Start
@@ -702,7 +702,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[75]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;phy_layer
 </UL>
 
-<P><STRONG><a name="[78]"></a>phy_TX</STRONG> (Thumb, 210 bytes, Stack size 24 bytes, main.o(i.phy_TX))
+<P><STRONG><a name="[78]"></a>phy_TX</STRONG> (Thumb, 196 bytes, Stack size 24 bytes, main.o(i.phy_TX))
 <BR><BR>[Stack]<UL><LI>Max Depth = 40<LI>Call Chain = phy_TX &rArr; send_state
 </UL>
 <BR>[Calls]<UL><LI><a href="#[7b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_Base_Stop_IT

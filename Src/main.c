@@ -41,7 +41,7 @@
 #include "stm32f1xx_hal.h"
 
 /* USER CODE BEGIN Includes */
-#define MASK_MAX 256
+#define MASK_MAX 128
 #define BYTE_COUNT 8
 #define GPIOA_IDR 0x40010808
 #define GPIOB_ODR 0x40010C0C
@@ -84,6 +84,9 @@ uint32_t prev_tx_clock = 0;
 uint32_t prev_rx_clock = 0;
 uint32_t prev_interface_clock = 0;
 uint8_t output_data = 0;
+uint8_t received_bit = 0;
+uint8_t rx_preamble_counter = 0; //counts the number of sync 1s that were received 
+uint32_t rx_state = RX_SYNC_STATE; 
 
 static uint32_t alive = 0;
 static uint32_t phy_busy = 0;
@@ -154,16 +157,18 @@ void phy_TX()
 	}
 	if(mask > MASK_MAX) //all 8-bits were sent 
 	{
-		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_SET);//set phy_tx_busy to 0
+		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_RESET);//set phy_tx_busy to 0
 		phy_busy = 0;
 		HAL_TIM_Base_Stop(&htim3); //stop commi clock 
 		HAL_TIM_Base_Stop_IT(&htim3);
 		current_state = IDLE;
 		send_state(IDLE); //send idle
 		mask = 1;
+		tx_preamble_counter = 0;
 	}
 	else if(clock && !prev_tx_clock)
 	{
+		/*
 		if(tx_preamble_counter < 3)
 		{
 			current_state = HIGH; 
@@ -171,19 +176,22 @@ void phy_TX()
 			tx_preamble_counter++;
 		}
 		else
+		*/
+		if(1)
 		{
 			masked_bit = dll_to_phy_tx_bus & mask;
-			switch(masked_bit)
+			if(!masked_bit)
 			{
-				case 0:
-					current_state = LOW;
-					send_state(LOW);
-					break;
-				default: //any other value that 0, means current bit is 1.
-					current_state = HIGH;
-					send_state(HIGH);
-					break;
+				current_state = LOW;
+				send_state(LOW);
 			}
+			else if(masked_bit == mask)
+			{
+				current_state = HIGH;
+				send_state(HIGH);
+			}
+			else while(1);//if it gets in here, I will kms eventually.
+				
 			mask*=2;
 		}
 	}
@@ -197,6 +205,7 @@ void phy_TX()
 		
 		send_state(current_state);
 	}
+
 }
 
 /*
@@ -205,9 +214,7 @@ After reeiving 8 bits the function transfers the data to the dll_rx.
 */
 void phy_RX() //this is the function who is known in the streets as "big boy chili". 
 {
-	static uint8_t rx_preamble_counter = 0; //counts the number of sync 1s that were received 
-	static uint32_t rx_state = RX_SYNC_STATE; 
-	static uint32_t throws_counter = 0; //counts the number of samples we threw because an unfamiliar pattern 
+	
 	static uint32_t mask = 1; //isolate each bit from incoming data
 	static uint32_t data_input = 0; 
 	static int first_time_so_I_need_to_turn_on_the_timer_ok = 1;
@@ -218,57 +225,15 @@ void phy_RX() //this is the function who is known in the streets as "big boy chi
 		HAL_TIM_Base_Start_IT(&htim4);
 		first_time_so_I_need_to_turn_on_the_timer_ok = 0;
 	}
-	rx_state = (rx_preamble_counter == 3) ? (RX_DATA_STATE) : (RX_SYNC_STATE); //if three sync 1s had been recived, Data state
-	if(sample_counter == 5) 
+	if(received_bit == 1 || received_bit == 2)
 	{
-		if(((samples[0] == LOW && samples[1] == LOW && samples[2] == LOW) && (samples[3] == HIGH && samples[4] == HIGH)) 
-				|| ((samples[0] == LOW && samples[1] == LOW) && (samples[2] == HIGH &&samples[3] == HIGH && samples[4] == HIGH)))
-		{ //low pulse
-			if(rx_state == RX_SYNC_STATE)
-			{				
-				return; //exit program
-			}
-			mask*=2;
-			sample_counter = 0;
-		}
-		else if(((samples[0] == HIGH && samples[1] == HIGH && samples[2] == HIGH) && (samples[3] == LOW && samples[4] == LOW)) 
-				|| ((samples[0] == HIGH && samples[1] == HIGH) && (samples[2] == LOW &&samples[3] == LOW && samples[4] == LOW))) 
-		{ //high pulse 
-			rx_preamble_counter = (rx_preamble_counter < 3) ? (rx_preamble_counter+1) : (rx_preamble_counter);
-			/*
-			TO DO:
-			- Add a timer to messure the time taken to receive preamble bits
-			- Calculate the sampling frequency
-			*/
-			sample_counter = 0;
-			if(rx_state == RX_DATA_STATE)
-			{
-				data_input+=mask;
-				mask*=2;	
-			}
-		}
-		else if(samples[0] == IDLE && samples[1] == IDLE && samples[2] == IDLE && samples[3] == IDLE && samples[4] == IDLE)
+		if(received_bit == 2)
 		{
-			if(rx_state == RX_DATA_STATE || (rx_preamble_counter > 0 && rx_preamble_counter < 3))
-			{
-								return; //received idle in a middle of a byte, someone made a mistake...
-			}
-			sample_counter = 0;
+			data_input += mask;
 		}
-		else//isn't a recognized pattern 
-		{
-			if(throws_counter > 5)
-				return; //exit program
-			for(i=0; i < SAMPLE_MAX - 1; i++)
-			{
-				samples[i] = samples[i+1];
-			}
-			sample_counter--;
-			//throws_counter++;
-		}
+		mask *= 2;
+		received_bit = 0;
 	}
-	
-	
 	if(mask > MASK_MAX)//received a byte
 	{
 		phy_to_dll_rx_bus = data_input;
@@ -327,8 +292,7 @@ void interface()
 
 void sampleClocks()
 {
-	//prev_tx_clock = clock;
-	prev_rx_clock = phy_rx_clock;
+	prev_tx_clock = clock;
 	prev_interface_clock = interface_clock;
 	//tx_clock = HAL_GPIO_ReadPin(phy_tx_clock_GPIO_Port,phy_tx_clock_Pin);
 	//phy_rx_clock = HAL_GPIO_ReadPin(phy_rx_clock_GPIO_Port,phy_rx_clock_Pin);
