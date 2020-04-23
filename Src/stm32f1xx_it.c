@@ -49,6 +49,14 @@ extern uint32_t prev_tx_clock;
 extern char samples[5];
 extern uint8_t sample_counter;
 static uint32_t temp = 0;
+static uint32_t sample1 = IDLE;
+static uint32_t sample2 = IDLE;
+static uint32_t sample3 = IDLE;
+static uint32_t sample4 = IDLE;
+static uint32_t sample5 = IDLE;
+static uint8_t sampled = 0;
+static uint32_t bit = 0;
+static uint32_t sample_clock = 0;
 extern ADC_HandleTypeDef hadc1;
 extern uint8_t received_bit;
 extern uint8_t rx_preamble_counter; //counts the number of sync 1s that were received 
@@ -230,7 +238,9 @@ void TIM2_IRQHandler(void)
 void TIM3_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM3_IRQn 0 */
-	clock = 1 - clock;
+	//prev_tx_clock = clock;
+	//clock = 1 - clock;
+	HAL_GPIO_TogglePin(phy_tx_clock_out_GPIO_Port, phy_tx_clock_out_Pin);
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
   /* USER CODE BEGIN TIM3_IRQn 1 */
@@ -244,21 +254,50 @@ void TIM3_IRQHandler(void)
 void TIM4_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM4_IRQn 0 */
+	sample_clock = 1 - sample_clock;
 	int i = 0;
-	static uint32_t throws_counter = 0; //counts the number of samples we threw because an unfamiliar pattern 
-	/* USER CODE END TIM4_IRQn 0 */
+	static uint32_t throws_counter = 0; //counts the number of samples we threw because an unfamiliar pattern
+  /* USER CODE END TIM4_IRQn 0 */
   HAL_TIM_IRQHandler(&htim4);
   /* USER CODE BEGIN TIM4_IRQn 1 */
+	sampled = 0;
 	if(sample_counter != 5)
 	{
+		
 		while(HAL_ADC_PollForConversion(&hadc1,5) != HAL_OK){}
 		temp = HAL_ADC_GetValue(&hadc1);
 		if(temp > HIGH_THRESH_MIN)
+		{
 			samples[sample_counter] = HIGH;
+			sampled = 1;
+		}
 		else if(temp < LOW_THRESH_MAX)
+		{	
 			samples[sample_counter] = LOW;
+			sampled = 1;
+		}
 		else
+		{
 			samples[sample_counter] = IDLE;
+		}
+		switch(sample_counter)
+		{
+			case 0:
+				sample1 = temp;
+				break;
+			case 1:
+				sample2 = temp;
+				break;
+			case 2:
+				sample3 = temp;
+				break;
+			case 3:
+				sample4 = temp;
+				break;
+			case 4:
+				sample5 = temp;
+				break;
+		}
 		sample_counter++;
 	}
 	else
@@ -273,6 +312,7 @@ void TIM4_IRQHandler(void)
 					return; //exit program
 			}
 			*/
+			bit = 0;
 			received_bit = 1;
 			sample_counter = 0;
 		}
@@ -288,7 +328,8 @@ void TIM4_IRQHandler(void)
 			sample_counter = 0;
 			//if(rx_state == RX_DATA_STATE)
 			//{
-				received_bit = 2;
+			bit = 2;
+			received_bit = 2;
 			//}
 		}
 		else if(samples[0] == IDLE && samples[1] == IDLE && samples[2] == IDLE && samples[3] == IDLE && samples[4] == IDLE)
@@ -297,6 +338,8 @@ void TIM4_IRQHandler(void)
 			//{
 			//					return; //received idle in a middle of a byte, someone made a mistake...
 			//}
+			
+			bit = 1;
 			sample_counter = 0;
 			received_bit = 0;
 		}
@@ -314,10 +357,9 @@ void TIM4_IRQHandler(void)
 		}
 	}
   /* USER CODE END TIM4_IRQn 1 */
-
+}
 
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
-}

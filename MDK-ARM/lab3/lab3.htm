@@ -3,7 +3,7 @@
 <title>Static Call Graph - [lab3\lab3.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image lab3\lab3.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060750: Last Updated: Mon Apr 20 16:28:02 2020
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060750: Last Updated: Thu Apr 23 16:49:44 2020
 <BR><P>
 <H3>Maximum Stack Usage =        152 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -323,7 +323,8 @@ Global Symbols
 </UL>
 
 <P><STRONG><a name="[6e]"></a>HAL_GPIO_TogglePin</STRONG> (Thumb, 8 bytes, Stack size 0 bytes, stm32f1xx_hal_gpio.o(i.HAL_GPIO_TogglePin))
-<BR><BR>[Called By]<UL><LI><a href="#[26]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM2_IRQHandler
+<BR><BR>[Called By]<UL><LI><a href="#[27]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM3_IRQHandler
+<LI><a href="#[26]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM2_IRQHandler
 </UL>
 
 <P><STRONG><a name="[65]"></a>HAL_GPIO_WritePin</STRONG> (Thumb, 10 bytes, Stack size 0 bytes, stm32f1xx_hal_gpio.o(i.HAL_GPIO_WritePin))
@@ -627,15 +628,16 @@ Global Symbols
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> startup_stm32f103xb.o(RESET)
 </UL>
-<P><STRONG><a name="[27]"></a>TIM3_IRQHandler</STRONG> (Thumb, 16 bytes, Stack size 0 bytes, stm32f1xx_it.o(i.TIM3_IRQHandler))
-<BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = TIM3_IRQHandler &rArr; HAL_TIM_IRQHandler
+<P><STRONG><a name="[27]"></a>TIM3_IRQHandler</STRONG> (Thumb, 22 bytes, Stack size 8 bytes, stm32f1xx_it.o(i.TIM3_IRQHandler))
+<BR><BR>[Stack]<UL><LI>Max Depth = 24<LI>Call Chain = TIM3_IRQHandler &rArr; HAL_TIM_IRQHandler
 </UL>
 <BR>[Calls]<UL><LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_IRQHandler
+<LI><a href="#[6e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_GPIO_TogglePin
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> startup_stm32f103xb.o(RESET)
 </UL>
-<P><STRONG><a name="[28]"></a>TIM4_IRQHandler</STRONG> (Thumb, 218 bytes, Stack size 16 bytes, stm32f1xx_it.o(i.TIM4_IRQHandler))
-<BR><BR>[Stack]<UL><LI>Max Depth = 80<LI>Call Chain = TIM4_IRQHandler &rArr; HAL_ADC_PollForConversion &rArr; HAL_RCCEx_GetPeriphCLKFreq
+<P><STRONG><a name="[28]"></a>TIM4_IRQHandler</STRONG> (Thumb, 284 bytes, Stack size 24 bytes, stm32f1xx_it.o(i.TIM4_IRQHandler))
+<BR><BR>[Stack]<UL><LI>Max Depth = 88<LI>Call Chain = TIM4_IRQHandler &rArr; HAL_ADC_PollForConversion &rArr; HAL_RCCEx_GetPeriphCLKFreq
 </UL>
 <BR>[Calls]<UL><LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_IRQHandler
 <LI><a href="#[41]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_ADC_PollForConversion
@@ -693,7 +695,7 @@ Global Symbols
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> entry9a.o(.ARM.Collect$$$$0000000B)
 </UL>
-<P><STRONG><a name="[77]"></a>phy_RX</STRONG> (Thumb, 76 bytes, Stack size 16 bytes, main.o(i.phy_RX))
+<P><STRONG><a name="[77]"></a>phy_RX</STRONG> (Thumb, 78 bytes, Stack size 16 bytes, main.o(i.phy_RX))
 <BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = phy_RX
 </UL>
 <BR>[Calls]<UL><LI><a href="#[72]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_Base_Start_IT
@@ -702,8 +704,8 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[75]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;phy_layer
 </UL>
 
-<P><STRONG><a name="[78]"></a>phy_TX</STRONG> (Thumb, 196 bytes, Stack size 24 bytes, main.o(i.phy_TX))
-<BR><BR>[Stack]<UL><LI>Max Depth = 40<LI>Call Chain = phy_TX &rArr; send_state
+<P><STRONG><a name="[78]"></a>phy_TX</STRONG> (Thumb, 260 bytes, Stack size 32 bytes, main.o(i.phy_TX))
+<BR><BR>[Stack]<UL><LI>Max Depth = 48<LI>Call Chain = phy_TX &rArr; send_state
 </UL>
 <BR>[Calls]<UL><LI><a href="#[7b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_Base_Stop_IT
 <LI><a href="#[7a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_TIM_Base_Stop
@@ -716,7 +718,7 @@ Global Symbols
 </UL>
 
 <P><STRONG><a name="[75]"></a>phy_layer</STRONG> (Thumb, 14 bytes, Stack size 8 bytes, main.o(i.phy_layer))
-<BR><BR>[Stack]<UL><LI>Max Depth = 48<LI>Call Chain = phy_layer &rArr; phy_TX &rArr; send_state
+<BR><BR>[Stack]<UL><LI>Max Depth = 56<LI>Call Chain = phy_layer &rArr; phy_TX &rArr; send_state
 </UL>
 <BR>[Calls]<UL><LI><a href="#[78]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;phy_TX
 <LI><a href="#[77]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;phy_RX
@@ -724,7 +726,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[35]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[76]"></a>sampleClocks</STRONG> (Thumb, 46 bytes, Stack size 16 bytes, main.o(i.sampleClocks))
+<P><STRONG><a name="[76]"></a>sampleClocks</STRONG> (Thumb, 58 bytes, Stack size 16 bytes, main.o(i.sampleClocks))
 <BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = sampleClocks
 </UL>
 <BR>[Calls]<UL><LI><a href="#[73]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_GPIO_ReadPin
@@ -752,8 +754,8 @@ Local Symbols
 <BR>[Called By]<UL><LI><a href="#[35]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[64]"></a>MX_GPIO_Init</STRONG> (Thumb, 164 bytes, Stack size 48 bytes, main.o(i.MX_GPIO_Init))
-<BR><BR>[Stack]<UL><LI>Max Depth = 88<LI>Call Chain = MX_GPIO_Init &rArr; HAL_GPIO_Init
+<P><STRONG><a name="[64]"></a>MX_GPIO_Init</STRONG> (Thumb, 200 bytes, Stack size 56 bytes, main.o(i.MX_GPIO_Init))
+<BR><BR>[Stack]<UL><LI>Max Depth = 96<LI>Call Chain = MX_GPIO_Init &rArr; HAL_GPIO_Init
 </UL>
 <BR>[Calls]<UL><LI><a href="#[65]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_GPIO_WritePin
 <LI><a href="#[40]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_GPIO_Init

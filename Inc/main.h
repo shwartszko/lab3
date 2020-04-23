@@ -81,6 +81,10 @@
 #define dll_rx_6_GPIO_Port GPIOB
 #define dll_rx_7_Pin GPIO_PIN_15
 #define dll_rx_7_GPIO_Port GPIOB
+#define phy_tx_clock_out_Pin GPIO_PIN_10
+#define phy_tx_clock_out_GPIO_Port GPIOA
+#define phy_tx_clock_in_Pin GPIO_PIN_11
+#define phy_tx_clock_in_GPIO_Port GPIOA
 #define dll_to_phy_tx_bus_valid_Pin GPIO_PIN_3
 #define dll_to_phy_tx_bus_valid_GPIO_Port GPIOB
 #define interface_clock_Pin GPIO_PIN_4

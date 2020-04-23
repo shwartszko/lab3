@@ -41,7 +41,7 @@
 #include "stm32f1xx_hal.h"
 
 /* USER CODE BEGIN Includes */
-#define MASK_MAX 128
+#define MASK_MAX 256
 #define BYTE_COUNT 8
 #define GPIOA_IDR 0x40010808
 #define GPIOB_ODR 0x40010C0C
@@ -75,7 +75,7 @@ static uint32_t phy_to_dll_rx_bus_valid = 0;
 uint8_t dll_new_data = 0;
 uint8_t phy_rx_new_data = 0;
 char samples[5];
-
+static char current_state = IDLE;
 static uint32_t phy_tx_data_value = 0;
 static uint32_t phy_rx_data_value = 0;
 static uint32_t phy_rx_clock = 0;
@@ -132,15 +132,15 @@ void send_state(char state)
 }	
 void phy_TX()
 {
-	static char current_state = IDLE;
+	
 	//send_state(IDLE, &current_state);
 	uint8_t next_state;
 	static uint8_t masked_bit = 0;
 	static uint8_t tx_first_state = 1;
 	static uint8_t tx_preamble_counter = 0;
 	static uint8_t data_to_send = 0;
-	static uint32_t mask = 1;
-	
+	static uint32_t mask = 256;
+	static uint8_t rose = 0;
 	if(tx_first_state) //function first iteration, send IDLE
 	{
 		current_state = IDLE; 
@@ -151,22 +151,12 @@ void phy_TX()
 	{
 		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_SET);//set phy_tx_busy to 1
 		phy_busy = 1;
-		HAL_TIM_Base_Start(&htim3); //start commi clock 
-		HAL_TIM_Base_Start_IT(&htim3);
 		dll_new_data = 0;
+		HAL_TIM_Base_Start(&htim3);
+		HAL_TIM_Base_Start_IT(&htim3);
+		
 	}
-	if(mask > MASK_MAX) //all 8-bits were sent 
-	{
-		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_RESET);//set phy_tx_busy to 0
-		phy_busy = 0;
-		HAL_TIM_Base_Stop(&htim3); //stop commi clock 
-		HAL_TIM_Base_Stop_IT(&htim3);
-		current_state = IDLE;
-		send_state(IDLE); //send idle
-		mask = 1;
-		tx_preamble_counter = 0;
-	}
-	else if(clock && !prev_tx_clock)
+	if(clock && !prev_tx_clock && mask <= MASK_MAX && !rose)
 	{
 		/*
 		if(tx_preamble_counter < 3)
@@ -179,6 +169,12 @@ void phy_TX()
 		*/
 		if(1)
 		{
+		
+			current_state = LOW;
+			send_state(LOW);
+			
+			rose = 1;
+			
 			masked_bit = dll_to_phy_tx_bus & mask;
 			if(!masked_bit)
 			{
@@ -190,12 +186,11 @@ void phy_TX()
 				current_state = HIGH;
 				send_state(HIGH);
 			}
-			else while(1);//if it gets in here, I will kms eventually.
-				
+			
 			mask*=2;
 		}
 	}
-	else if(!clock && prev_tx_clock)
+	else if(!clock && prev_tx_clock && mask <= MASK_MAX && rose)
 	{
 		//send HIGH if in the last raising edge LOW was sent vice versa
 		if(current_state == HIGH)
@@ -203,7 +198,21 @@ void phy_TX()
 		else if(current_state == LOW)
 			current_state = HIGH;
 		
+		rose = 0;
 		send_state(current_state);
+	}
+	else if(mask > MASK_MAX) //all 8-bits were sent 
+	{
+		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_RESET);//set phy_tx_busy to 0
+		phy_busy = 0;
+		HAL_TIM_Base_Stop(&htim3);
+		HAL_TIM_Base_Stop_IT(&htim3);
+		HAL_GPIO_WritePin(phy_tx_clock_out_GPIO_Port, phy_tx_clock_out_Pin, GPIO_PIN_RESET);
+		current_state = IDLE;
+		send_state(IDLE); //send idle
+		mask = 1;
+		tx_preamble_counter = 0;
+
 	}
 
 }
@@ -294,7 +303,7 @@ void sampleClocks()
 {
 	prev_tx_clock = clock;
 	prev_interface_clock = interface_clock;
-	//tx_clock = HAL_GPIO_ReadPin(phy_tx_clock_GPIO_Port,phy_tx_clock_Pin);
+	clock = HAL_GPIO_ReadPin(phy_tx_clock_in_GPIO_Port,phy_tx_clock_in_Pin);
 	//phy_rx_clock = HAL_GPIO_ReadPin(phy_rx_clock_GPIO_Port,phy_rx_clock_Pin);
 	interface_clock = HAL_GPIO_ReadPin(interface_clock_GPIO_Port,interface_clock_Pin);
 	dll_to_phy_tx_bus_valid = HAL_GPIO_ReadPin(dll_to_phy_tx_bus_valid_GPIO_Port, dll_to_phy_tx_bus_valid_Pin);
@@ -346,6 +355,7 @@ int main(void)
   MX_NVIC_Init();
   /* USER CODE BEGIN 2 */
 	HAL_ADC_Start(&hadc1);
+	
 	//HAL_GPIO_WritePin(phy_tx_clock_GPIO_Port,phy_tx_clock_Pin, GPIO_PIN_RESET);//set clock to 0
 	HAL_GPIO_WritePin(interface_clock_GPIO_Port,interface_clock_Pin, GPIO_PIN_RESET);//set clock to 0
 	HAL_GPIO_WritePin(phy_to_dll_rx_bus_valid_GPIO_Port,phy_to_dll_rx_bus_valid_Pin,GPIO_PIN_RESET);//set valid to 0
@@ -515,9 +525,9 @@ static void MX_TIM3_Init(void)
   TIM_MasterConfigTypeDef sMasterConfig;
 
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 4999;
+  htim3.Init.Prescaler = 3332;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 4;
+  htim3.Init.Period = 6;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -598,6 +608,9 @@ static void MX_GPIO_Init(void)
                           |dll_rx_6_Pin|dll_rx_7_Pin|interface_clock_Pin|phy_alive_Pin 
                           |phy_tx_busy_Pin|phy_to_dll_rx_bus_valid_Pin|dll_rx_0_Pin|dll_rx_1_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, phy_tx_clock_out_Pin|GPIO_PIN_12, GPIO_PIN_RESET);
+
   /*Configure GPIO pins : B_Pin C_Pin */
   GPIO_InitStruct.Pin = B_Pin|C_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -606,9 +619,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : dll_tx_0_Pin dll_tx_1_Pin dll_tx_2_Pin dll_tx_3_Pin 
-                           dll_tx_4_Pin dll_tx_5_Pin dll_tx_6_Pin dll_tx_7_Pin */
+                           dll_tx_4_Pin dll_tx_5_Pin dll_tx_6_Pin dll_tx_7_Pin 
+                           phy_tx_clock_in_Pin */
   GPIO_InitStruct.Pin = dll_tx_0_Pin|dll_tx_1_Pin|dll_tx_2_Pin|dll_tx_3_Pin 
-                          |dll_tx_4_Pin|dll_tx_5_Pin|dll_tx_6_Pin|dll_tx_7_Pin;
+                          |dll_tx_4_Pin|dll_tx_5_Pin|dll_tx_6_Pin|dll_tx_7_Pin 
+                          |phy_tx_clock_in_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -623,6 +638,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : phy_tx_clock_out_Pin PA12 */
+  GPIO_InitStruct.Pin = phy_tx_clock_out_Pin|GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : dll_to_phy_tx_bus_valid_Pin */
   GPIO_InitStruct.Pin = dll_to_phy_tx_bus_valid_Pin;
