@@ -41,7 +41,8 @@
 #include "stm32f1xx_hal.h"
 
 /* USER CODE BEGIN Includes */
-#define MASK_MAX 256
+#define TX_MASK_MAX 256
+#define RX_MASK_MAX 128
 #define BYTE_COUNT 8
 #define GPIOA_IDR 0x40010808
 #define GPIOB_ODR 0x40010C0C
@@ -67,14 +68,13 @@ TIM_HandleTypeDef htim4;
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 uint32_t clock = 0;
-uint8_t sample_counter;
-static uint32_t phy_to_dll_rx_bus;
+static uint32_t sample_clock = 0;
+uint32_t phy_to_dll_rx_bus = 0;
 static uint32_t dll_to_phy_tx_bus;
 static uint32_t dll_to_phy_tx_bus_valid = 0;
 static uint32_t phy_to_dll_rx_bus_valid = 0;
 uint8_t dll_new_data = 0;
-uint8_t phy_rx_new_data = 0;
-char samples[5];
+uint32_t phy_rx_new_data = 0;
 static char current_state = IDLE;
 static uint32_t phy_tx_data_value = 0;
 static uint32_t phy_rx_data_value = 0;
@@ -84,12 +84,15 @@ uint32_t prev_tx_clock = 0;
 uint32_t prev_rx_clock = 0;
 uint32_t prev_interface_clock = 0;
 uint8_t output_data = 0;
-uint8_t received_bit = 0;
-uint8_t rx_preamble_counter = 0; //counts the number of sync 1s that were received 
+
+
 uint32_t rx_state = RX_SYNC_STATE; 
 
 static uint32_t alive = 0;
 static uint32_t phy_busy = 0;
+static uint32_t rx_counter = 0;
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -151,14 +154,13 @@ void phy_TX()
 	{
 		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_SET);//set phy_tx_busy to 1
 		phy_busy = 1;
-		dll_new_data = 0;
 		HAL_TIM_Base_Start(&htim3);
 		HAL_TIM_Base_Start_IT(&htim3);
-		
+		dll_new_data = 0;
 	}
-	if(clock && !prev_tx_clock && mask <= MASK_MAX && !rose)
+	if(clock && !prev_tx_clock && mask <= TX_MASK_MAX && !rose)
 	{
-		/*
+		rose = 1;
 		if(tx_preamble_counter < 3)
 		{
 			current_state = HIGH; 
@@ -166,14 +168,7 @@ void phy_TX()
 			tx_preamble_counter++;
 		}
 		else
-		*/
-		if(1)
 		{
-		
-			current_state = LOW;
-			send_state(LOW);
-			
-			rose = 1;
 			
 			masked_bit = dll_to_phy_tx_bus & mask;
 			if(!masked_bit)
@@ -190,7 +185,7 @@ void phy_TX()
 			mask*=2;
 		}
 	}
-	else if(!clock && prev_tx_clock && mask <= MASK_MAX && rose)
+	else if(!clock && prev_tx_clock && mask <= TX_MASK_MAX && rose)
 	{
 		//send HIGH if in the last raising edge LOW was sent vice versa
 		if(current_state == HIGH)
@@ -201,7 +196,7 @@ void phy_TX()
 		rose = 0;
 		send_state(current_state);
 	}
-	else if(mask > MASK_MAX) //all 8-bits were sent 
+	else if(mask > TX_MASK_MAX) //all 8-bits were sent 
 	{
 		HAL_GPIO_WritePin(phy_tx_busy_GPIO_Port, phy_tx_busy_Pin, GPIO_PIN_RESET);//set phy_tx_busy to 0
 		phy_busy = 0;
@@ -221,11 +216,70 @@ void phy_TX()
 The function receives a bit from the communication line every time the rx_clock is in falling edge.
 After reeiving 8 bits the function transfers the data to the dll_rx.
 */
+
+void phy_RX()
+{
+	uint32_t x = 5;
+	static uint32_t first = 1;
+	if(first)
+	{
+		HAL_TIM_Base_Start(&htim4);
+		HAL_TIM_Base_Start_IT(&htim4);
+		first = 0;
+	}
+	/*if(received_bit == 1 || received_bit == 2)
+	{
+		if(received_bit == 2)
+		{
+			data_input += rx_mask;
+		}
+		rx_mask*=2;
+		rx_counter++;
+	}
+	if(rx_counter == 8)
+	{
+		if(dll_to_phy_tx_bus != 0)
+		{
+			
+			phy_to_dll_rx_bus = data_input;
+			data_input = 0;
+			phy_rx_new_data = 1;
+			rx_mask = 1;
+			rx_counter = 0;
+		}	
+		rx_mask = 1;
+		rx_counter = 0;
+		phy_to_dll_rx_bus = data_input;
+		data_input = 0;
+		phy_rx_new_data = 1;
+	}
+	*/
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
 void phy_RX() //this is the function who is known in the streets as "big boy chili". 
 {
 	
-	static uint32_t mask = 1; //isolate each bit from incoming data
-	static uint32_t data_input = 0; 
+	
 	static int first_time_so_I_need_to_turn_on_the_timer_ok = 1;
 	uint32_t i = 0;
 	if(first_time_so_I_need_to_turn_on_the_timer_ok)
@@ -241,10 +295,12 @@ void phy_RX() //this is the function who is known in the streets as "big boy chi
 			data_input += mask;
 		}
 		mask *= 2;
-		received_bit = 0;
+		received_bit = 3;
+		rx_counter++;
 	}
-	if(mask > MASK_MAX)//received a byte
+	if(rx_counter == 8)//received a byte
 	{
+		rx_counter = 0;
 		phy_to_dll_rx_bus = data_input;
 		phy_rx_new_data = 1;
 		mask = 1;
@@ -252,7 +308,7 @@ void phy_RX() //this is the function who is known in the streets as "big boy chi
 		rx_state = RX_SYNC_STATE;
 		rx_preamble_counter = 0;
 	}
-}
+}*/
 
 /*
 The function communicates with the dll layer
@@ -304,6 +360,7 @@ void sampleClocks()
 	prev_tx_clock = clock;
 	prev_interface_clock = interface_clock;
 	clock = HAL_GPIO_ReadPin(phy_tx_clock_in_GPIO_Port,phy_tx_clock_in_Pin);
+	sample_clock = HAL_GPIO_ReadPin(sample_clock_out_GPIO_Port, sample_clock_out_Pin);
 	//phy_rx_clock = HAL_GPIO_ReadPin(phy_rx_clock_GPIO_Port,phy_rx_clock_Pin);
 	interface_clock = HAL_GPIO_ReadPin(interface_clock_GPIO_Port,interface_clock_Pin);
 	dll_to_phy_tx_bus_valid = HAL_GPIO_ReadPin(dll_to_phy_tx_bus_valid_GPIO_Port, dll_to_phy_tx_bus_valid_Pin);
@@ -355,7 +412,6 @@ int main(void)
   MX_NVIC_Init();
   /* USER CODE BEGIN 2 */
 	HAL_ADC_Start(&hadc1);
-	
 	//HAL_GPIO_WritePin(phy_tx_clock_GPIO_Port,phy_tx_clock_Pin, GPIO_PIN_RESET);//set clock to 0
 	HAL_GPIO_WritePin(interface_clock_GPIO_Port,interface_clock_Pin, GPIO_PIN_RESET);//set clock to 0
 	HAL_GPIO_WritePin(phy_to_dll_rx_bus_valid_GPIO_Port,phy_to_dll_rx_bus_valid_Pin,GPIO_PIN_RESET);//set valid to 0
@@ -609,7 +665,7 @@ static void MX_GPIO_Init(void)
                           |phy_tx_busy_Pin|phy_to_dll_rx_bus_valid_Pin|dll_rx_0_Pin|dll_rx_1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, phy_tx_clock_out_Pin|GPIO_PIN_12, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, sample_clock_out_Pin|phy_tx_clock_out_Pin|GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : B_Pin C_Pin */
   GPIO_InitStruct.Pin = B_Pin|C_Pin;
@@ -639,12 +695,18 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : phy_tx_clock_out_Pin PA12 */
-  GPIO_InitStruct.Pin = phy_tx_clock_out_Pin|GPIO_PIN_12;
+  /*Configure GPIO pins : sample_clock_out_Pin phy_tx_clock_out_Pin PA12 */
+  GPIO_InitStruct.Pin = sample_clock_out_Pin|phy_tx_clock_out_Pin|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : sample_clock_in_Pin */
+  GPIO_InitStruct.Pin = sample_clock_in_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(sample_clock_in_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : dll_to_phy_tx_bus_valid_Pin */
   GPIO_InitStruct.Pin = dll_to_phy_tx_bus_valid_Pin;
