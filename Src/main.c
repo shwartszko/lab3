@@ -92,7 +92,8 @@ static uint32_t alive = 0;
 static uint32_t phy_busy = 0;
 static uint32_t rx_counter = 0;
 
-
+uint32_t start_counting = 0;
+uint32_t operation_counter = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/

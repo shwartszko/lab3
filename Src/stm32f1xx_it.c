@@ -58,6 +58,8 @@ static uint32_t temp = 0;
 static uint32_t rx_h_mask = 1;
 static uint32_t rx_preamble_counter = 0; //counts the number of sync 1s that were received 
 static uint32_t throw_counter = 0;
+extern uint32_t start_counting;
+extern uint32_t operation_counter;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -222,6 +224,10 @@ void TIM2_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM2_IRQn 0 */
 	HAL_GPIO_TogglePin(interface_clock_GPIO_Port, interface_clock_Pin);
+	if(start_counting)
+	{
+		operation_counter++;
+	}
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
@@ -256,6 +262,7 @@ void TIM4_IRQHandler(void)
 	static uint32_t rx_state = 0;
 	static char samples[5] = {0};
 	static uint32_t prev_sample = 0;
+	
   /* USER CODE END TIM4_IRQn 0 */
   HAL_TIM_IRQHandler(&htim4);
   /* USER CODE BEGIN TIM4_IRQn 1 */
@@ -288,6 +295,8 @@ void TIM4_IRQHandler(void)
 			rx_h_mask = 1;
 			input = 0;
 			rx_preamble_counter++;
+			start_counting = 0;
+			
 		}
 		if((((samples[0] == LOW && samples[1] == LOW && samples[2] == LOW) && (samples[3] == HIGH && samples[4] == HIGH)) 
 				|| ((samples[0] == LOW && samples[1] == LOW) && (samples[2] == HIGH &&samples[3] == HIGH && samples[4] == HIGH)))
@@ -308,7 +317,10 @@ void TIM4_IRQHandler(void)
 				&& rx_state != RX_ERROR_STATE) 
 		{ //high pulse
 			if(bit == 1)
+			{
 				rx_preamble_counter = 0;
+				start_counting = 1;
+			}
 			
 			if(rx_preamble_counter < 3)
 			{
