@@ -44,6 +44,7 @@
 #define RX_SYNC_STATE 100
 #define RX_DATA_STATE 101
 #define RX_ERROR_STATE 102
+#define RX_IDLE_STATE 103
 #define SAMPLE_MAX 5
 extern uint32_t clock;
 extern uint32_t prev_tx_clock;
@@ -56,6 +57,7 @@ static uint32_t input = 0;
 static uint32_t temp = 0;
 static uint32_t rx_h_mask = 1;
 static uint32_t rx_preamble_counter = 0; //counts the number of sync 1s that were received 
+static uint32_t throw_counter = 0;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -265,6 +267,8 @@ void TIM4_IRQHandler(void)
 		if(temp > HIGH_THRESH_MIN)
 		{
 			samples[sample_counter] = HIGH;
+			if(bit == 1)
+				rx_preamble_counter = 0;
 		}
 		else if(temp < LOW_THRESH_MAX)
 		{
@@ -278,22 +282,30 @@ void TIM4_IRQHandler(void)
 	}
 	else if(sample_counter == 5)
 	{
-		if(rx_preamble_counter == 3)
+		if(rx_preamble_counter == 3 && rx_state != RX_ERROR_STATE)
 		{
+			rx_state = RX_DATA_STATE;
 			rx_h_mask = 1;
 			input = 0;
 			rx_preamble_counter++;
 		}
-		if(((samples[0] == LOW && samples[1] == LOW && samples[2] == LOW) && (samples[3] == HIGH && samples[4] == HIGH)) 
+		if((((samples[0] == LOW && samples[1] == LOW && samples[2] == LOW) && (samples[3] == HIGH && samples[4] == HIGH)) 
 				|| ((samples[0] == LOW && samples[1] == LOW) && (samples[2] == HIGH &&samples[3] == HIGH && samples[4] == HIGH)))
+				&& rx_state != RX_ERROR_STATE)
 		{ //low pulse
-			
-			bit = 0;
-			rx_h_mask*=2;
-			sample_counter = 0;
+			if(rx_state == RX_SYNC_STATE)
+				rx_state = RX_ERROR_STATE;
+			else
+			{
+				bit = 0;
+				rx_h_mask*=2;
+				sample_counter = 0;
+				throw_counter = 0;
+			}
 		}
-		else if(((samples[0] == HIGH && samples[1] == HIGH && samples[2] == HIGH) && (samples[3] == LOW && samples[4] == LOW)) 
+		else if((((samples[0] == HIGH && samples[1] == HIGH && samples[2] == HIGH) && (samples[3] == LOW && samples[4] == LOW)) 
 				|| ((samples[0] == HIGH && samples[1] == HIGH) && (samples[2] == LOW &&samples[3] == LOW && samples[4] == LOW))) 
+				&& rx_state != RX_ERROR_STATE) 
 		{ //high pulse
 			if(bit == 1)
 				rx_preamble_counter = 0;
@@ -309,27 +321,50 @@ void TIM4_IRQHandler(void)
 			}
 			bit = 2;
 			sample_counter = 0;
+			throw_counter = 0;
 		}
 		else if(samples[0] == IDLE && samples[1] == IDLE && samples[2] == IDLE && samples[3] == IDLE && samples[4] == IDLE)
 		{
+			if(rx_state == RX_DATA_STATE || rx_state == RX_SYNC_STATE)
+				rx_state = RX_ERROR_STATE;
 			bit = 1;
 			sample_counter = 0;
+			throw_counter = 0;
+			if(rx_state == RX_ERROR_STATE)
+			{
+				throw_counter = 0;
+				rx_h_mask = 1;
+				phy_to_dll_rx_bus = 255;
+				phy_rx_new_data = 1;
+				input = 0;
+				rx_preamble_counter = 0;
+			}
+			rx_state = RX_IDLE_STATE;
 		}
 		else
 		{
+			if(throw_counter > 6)
+			{
+				rx_state = RX_ERROR_STATE;
+				bit = 1;
+			}
 			samples[0] = samples[1];
 			samples[1] = samples[2];
 			samples[2] = samples[3];
 			samples[3] = samples[4];
+			throw_counter++;
+				
 			sample_counter--;
 		}
-		if(rx_h_mask > 128)
+		if(rx_h_mask > 128 && rx_state != RX_ERROR_STATE)
 		{
+			throw_counter = 0;
 			rx_h_mask = 1;
 			phy_to_dll_rx_bus = input;
 			phy_rx_new_data = 1;
 			input = 0;
 			rx_preamble_counter = 0;
+			rx_state = RX_IDLE_STATE;
 		}
 	}
 
