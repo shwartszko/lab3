@@ -60,6 +60,7 @@ static uint32_t rx_preamble_counter = 0; //counts the number of sync 1s that wer
 static uint32_t throw_counter = 0;
 extern uint32_t start_counting;
 extern uint32_t operation_counter;
+static uint32_t rx_state = RX_IDLE_STATE;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -257,9 +258,9 @@ void TIM3_IRQHandler(void)
 void TIM4_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM4_IRQn 0 */
+	static uint32_t x = 69;
 	static uint8_t sample_counter = 0;
 	static uint8_t received_bit = 0;
-	static uint32_t rx_state = 0;
 	static char samples[5] = {0};
 	static uint32_t prev_sample = 0;
 	
@@ -274,8 +275,12 @@ void TIM4_IRQHandler(void)
 		if(temp > HIGH_THRESH_MIN)
 		{
 			samples[sample_counter] = HIGH;
-			if(bit == 1)
+			if(rx_state == RX_IDLE_STATE)
+			{
 				rx_preamble_counter = 0;
+				rx_state = RX_SYNC_STATE;
+				start_counting = 1;
+			}
 		}
 		else if(temp < LOW_THRESH_MAX)
 		{
@@ -287,7 +292,7 @@ void TIM4_IRQHandler(void)
 		}
 		sample_counter++;
 	}
-	else if(sample_counter == 5)
+	if(sample_counter == 5)
 	{
 		if(rx_preamble_counter == 3 && rx_state != RX_ERROR_STATE)
 		{
@@ -303,7 +308,9 @@ void TIM4_IRQHandler(void)
 				&& rx_state != RX_ERROR_STATE)
 		{ //low pulse
 			if(rx_state == RX_SYNC_STATE)
+			{
 				rx_state = RX_ERROR_STATE;
+			}
 			else
 			{
 				bit = 0;
@@ -316,12 +323,6 @@ void TIM4_IRQHandler(void)
 				|| ((samples[0] == HIGH && samples[1] == HIGH) && (samples[2] == LOW &&samples[3] == LOW && samples[4] == LOW))) 
 				&& rx_state != RX_ERROR_STATE) 
 		{ //high pulse
-			if(bit == 1)
-			{
-				rx_preamble_counter = 0;
-				start_counting = 1;
-			}
-			
 			if(rx_preamble_counter < 3)
 			{
 				rx_preamble_counter++;
@@ -335,41 +336,40 @@ void TIM4_IRQHandler(void)
 			sample_counter = 0;
 			throw_counter = 0;
 		}
-		else if(samples[0] == IDLE && samples[1] == IDLE && samples[2] == IDLE && samples[3] == IDLE && samples[4] == IDLE)
+		else if((samples[0] == IDLE && samples[1] == IDLE && samples[2] == IDLE && samples[3] == IDLE && samples[4] == IDLE)
+			       &&(rx_state != RX_ERROR_STATE))
 		{
-			if(rx_state == RX_DATA_STATE || rx_state == RX_SYNC_STATE)
-				rx_state = RX_ERROR_STATE;
-			bit = 1;
 			sample_counter = 0;
-			throw_counter = 0;
-			if(rx_state == RX_ERROR_STATE)
+			bit =1;
+			if(rx_state == RX_DATA_STATE || rx_state == RX_SYNC_STATE)
 			{
-				throw_counter = 0;
-				rx_h_mask = 1;
-				phy_to_dll_rx_bus = 255;
-				phy_rx_new_data = 1;
-				input = 0;
-				rx_preamble_counter = 0;
+				rx_state = RX_ERROR_STATE;
 			}
-			rx_state = RX_IDLE_STATE;
 		}
 		else
 		{
-			if(throw_counter > 6)
+			if(throw_counter > 6 && (rx_state != RX_ERROR_STATE))
 			{
 				rx_state = RX_ERROR_STATE;
 				bit = 1;
+			}
+			if(rx_state == RX_ERROR_STATE) 
+			{
+				rx_h_mask*=2;
+			}
+			else
+			{
+				throw_counter++;	
 			}
 			samples[0] = samples[1];
 			samples[1] = samples[2];
 			samples[2] = samples[3];
 			samples[3] = samples[4];
-			throw_counter++;
-				
 			sample_counter--;
 		}
-		if(rx_h_mask > 128 && rx_state != RX_ERROR_STATE)
+		if(rx_h_mask > 128) //when byte is finished, successfully or unsuccessfully 
 		{
+			input = (rx_state == RX_ERROR_STATE) ? 255 : input;
 			throw_counter = 0;
 			rx_h_mask = 1;
 			phy_to_dll_rx_bus = input;

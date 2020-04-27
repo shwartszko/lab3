@@ -86,7 +86,7 @@ uint32_t prev_interface_clock = 0;
 uint8_t output_data = 0;
 
 
-uint32_t rx_state = RX_SYNC_STATE; 
+//uint32_t rx_state = RX_SYNC_STATE; 
 
 static uint32_t alive = 0;
 static uint32_t phy_busy = 0;
@@ -159,7 +159,7 @@ void phy_TX()
 		HAL_TIM_Base_Start_IT(&htim3);
 		dll_new_data = 0;
 	}
-	if(clock && !prev_tx_clock && mask <= TX_MASK_MAX && !rose)
+	if(clock && !prev_tx_clock && (mask <= TX_MASK_MAX) && !rose)
 	{
 		rose = 1;
 		if(tx_preamble_counter < 3)
