@@ -35,10 +35,36 @@ compiling stm32f1xx_it.c...
 ../Src/stm32f1xx_it.c(55): warning:  #550-D: variable "bit"  was set but never used
   static uint8_t bit = 1; 
 ../Src/stm32f1xx_it.c: 3 warnings, 0 errors
+compiling main.c...
+../Src/main.c(138): warning:  #177-D: variable "next_state"  was declared but never referenced
+  	uint8_t next_state;
+../Src/main.c(142): warning:  #177-D: variable "data_to_send"  was declared but never referenced
+  	static uint8_t data_to_send = 0;
+../Src/main.c(220): warning:  #177-D: variable "x"  was declared but never referenced
+  	uint32_t x = 5;
+../Src/main.c(71): warning:  #550-D: variable "sample_clock"  was set but never used
+  static uint32_t sample_clock = 0;
+../Src/main.c(74): warning:  #550-D: variable "dll_to_phy_tx_bus_valid"  was set but never used
+  static uint32_t dll_to_phy_tx_bus_valid = 0;
+../Src/main.c(75): warning:  #550-D: variable "phy_to_dll_rx_bus_valid"  was set but never used
+  static uint32_t phy_to_dll_rx_bus_valid = 0;
+../Src/main.c(79): warning:  #177-D: variable "phy_tx_data_value"  was declared but never referenced
+  static uint32_t phy_tx_data_value = 0;
+../Src/main.c(80): warning:  #177-D: variable "phy_rx_data_value"  was declared but never referenced
+  static uint32_t phy_rx_data_value = 0;
+../Src/main.c(81): warning:  #550-D: variable "phy_rx_clock"  was set but never used
+  static uint32_t phy_rx_clock = 0;
+../Src/main.c(88): warning:  #550-D: variable "alive"  was set but never used
+  static uint32_t alive = 0;
+../Src/main.c(89): warning:  #550-D: variable "phy_busy"  was set but never used
+  static uint32_t phy_busy = 0;
+../Src/main.c(90): warning:  #177-D: variable "rx_counter"  was declared but never referenced
+  static uint32_t rx_counter = 0;
+../Src/main.c: 12 warnings, 0 errors
 linking...
 Program Size: Code=7340 RO-data=292 RW-data=148 ZI-data=1268  
 FromELF: creating hex file...
-"lab3\lab3.axf" - 0 Error(s), 3 Warning(s).
+"lab3\lab3.axf" - 0 Error(s), 15 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -61,7 +87,7 @@ Package Vendor: Keil
 <h2>Collection of Component Files used:</h2>
 
    * Component: ARM::CMSIS:CORE:5.3.0
-Build Time Elapsed:  00:00:03
+Build Time Elapsed:  00:00:04
 </pre>
 </body>
 </html>
