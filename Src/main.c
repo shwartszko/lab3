@@ -84,9 +84,7 @@ uint32_t prev_tx_clock = 0;
 uint32_t prev_rx_clock = 0;
 uint32_t prev_interface_clock = 0;
 uint8_t output_data = 0;
-
-
-uint32_t rx_state = RX_SYNC_STATE; 
+ 
 
 static uint32_t alive = 0;
 static uint32_t phy_busy = 0;
@@ -228,88 +226,9 @@ void phy_RX()
 		HAL_TIM_Base_Start_IT(&htim4);
 		first = 0;
 	}
-	/*if(received_bit == 1 || received_bit == 2)
-	{
-		if(received_bit == 2)
-		{
-			data_input += rx_mask;
-		}
-		rx_mask*=2;
-		rx_counter++;
-	}
-	if(rx_counter == 8)
-	{
-		if(dll_to_phy_tx_bus != 0)
-		{
-			
-			phy_to_dll_rx_bus = data_input;
-			data_input = 0;
-			phy_rx_new_data = 1;
-			rx_mask = 1;
-			rx_counter = 0;
-		}	
-		rx_mask = 1;
-		rx_counter = 0;
-		phy_to_dll_rx_bus = data_input;
-		data_input = 0;
-		phy_rx_new_data = 1;
-	}
-	*/
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
-void phy_RX() //this is the function who is known in the streets as "big boy chili". 
-{
-	
-	
-	static int first_time_so_I_need_to_turn_on_the_timer_ok = 1;
-	uint32_t i = 0;
-	if(first_time_so_I_need_to_turn_on_the_timer_ok)
-	{
-		HAL_TIM_Base_Start(&htim4);
-		HAL_TIM_Base_Start_IT(&htim4);
-		first_time_so_I_need_to_turn_on_the_timer_ok = 0;
-	}
-	if(received_bit == 1 || received_bit == 2)
-	{
-		if(received_bit == 2)
-		{
-			data_input += mask;
-		}
-		mask *= 2;
-		received_bit = 3;
-		rx_counter++;
-	}
-	if(rx_counter == 8)//received a byte
-	{
-		rx_counter = 0;
-		phy_to_dll_rx_bus = data_input;
-		phy_rx_new_data = 1;
-		mask = 1;
-		data_input = 0;
-		rx_state = RX_SYNC_STATE;
-		rx_preamble_counter = 0;
-	}
-}*/
 
 /*
 The function communicates with the dll layer
